@@ -4,36 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Movie & TV Library</title>
-  <!-- Original favicon (will be changed by cloak) -->
-  <link id="favicon" rel="icon" href="https://www.google.com/favicon.ico" type="image/x-icon">
   <style>
     body { font-family: Arial, sans-serif; background: #111; color: white; margin: 0; padding: 20px; }
-    h1 { text-align: center; margin: 10px 0; }
-    
-    /* Glowing stealth menu at top */
-    #stealth-menu {
-      text-align: center; margin-bottom: 20px;
-      position: relative;
-    }
-    #stealth-toggle {
-      padding: 12px 30px; font-size: 1.2em; font-weight: bold;
-      background: linear-gradient(45deg, #00ffea, #ff00aa);
-      color: #000; border: none; border-radius: 50px;
-      cursor: pointer; box-shadow: 0 0 20px rgba(0, 255, 234, 0.7);
-      transition: all 0.4s ease;
-    }
-    #stealth-toggle:hover {
-      box-shadow: 0 0 40px rgba(0, 255, 234, 1), 0 0 60px rgba(255, 0, 170, 0.8);
-      transform: scale(1.08);
-    }
-    #stealth-toggle.active {
-      background: linear-gradient(45deg, #ff0000, #ff9900);
-      color: white;
-      box-shadow: 0 0 30px #ff0000;
-    }
-    #status { text-align: center; font-size: 1.1em; margin: 10px; color: #0f0; }
-    
-    /* Your existing styles for grid/search/etc. */
+    h1 { text-align: center; }
     #search-container { text-align: center; margin: 20px 0; }
     #search { padding: 12px; width: 300px; max-width: 80%; font-size: 1.1em; border-radius: 6px; border: none; }
     #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; max-width: 1400px; margin: 0 auto; }
@@ -47,11 +20,6 @@
   </style>
 </head>
 <body>
-  <div id="stealth-menu">
-    <button id="stealth-toggle">Stealth Mode OFF</button>
-  </div>
-  <div id="status"></div>
-
   <h1>My Movie & TV Library</h1>
 
   <div id="search-container">
@@ -59,119 +27,196 @@
   </div>
 
   <div id="loading">Loading content...</div>
+  <div id="status"></div>
   <div id="grid"></div>
   <button id="load-more" style="display:none;">Load More</button>
 
   <script>
-    // === Your TMDB token ===
-    const TMDB_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhNTUwMGJjYzQyZmFhNDdjZmFmNTU4ODFkNWU5NDI5YyIsIm5iZiI6MTc3MzkyOTE1MC40MTY5OTk4LCJzdWIiOiI2OWJjMDJiZWJlZGM4NTYxNjk1N2RhZjEiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.wJL8jVFhmNvjlRIZS1EgQf2qCT8ywdSqCbZRvWUYw5Y';
+    // Your NEWEST TMDB Read Access Token
+    const TMDB_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIxZmFkNzk4MzIyOGVkNGZhY2ViNWUwYWI1MmIwNjBkNSIsIm5iZiI6MTc3MzkyOTE1MC40MTY5OTk4LCJzdWIiOiI2OWJjMDJiZWJlZGM4NTYxNjk1N2RhZjEiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.989w467erV3rSULdzlL3i5Mo2GAaF3dlVwTVQhmDE-I';
 
-    // === Cloaking / Stealth Mode Logic (adapted & simplified from your code) ===
-    let rotationInterval = null;
-    let isStealthActive = false;
+    let currentPage = 1;
+    let isSearching = false;
+    let searchQuery = '';
 
-    // Simple presets (add more as needed)
-    const cloakPresets = [
-      { name: 'Google', title: 'Google', favicon: 'https://www.google.com/favicon.ico' },
-      { name: 'Classroom', title: 'Google Classroom', favicon: 'https://ssl.gstatic.com/classroom/favicon.ico' },
-      { name: 'Drive', title: 'Google Drive', favicon: 'https://drive.google.com/favicon.ico' },
-      { name: 'Docs', title: 'Google Docs', favicon: 'https://docs.google.com/favicon.ico' }
-    ];
+    const grid = document.getElementById('grid');
+    const loading = document.getElementById('loading');
+    const status = document.getElementById('status');
+    const loadMoreBtn = document.getElementById('load-more');
+    const searchInput = document.getElementById('search');
 
-    const originalTitle = document.title;
-    const originalFavicon = document.querySelector('link[rel="icon"]')?.href || '';
-
-    function setTitle(title) {
-      document.title = title;
-      // Try top frame if in iframe
-      try { if (window.top !== window.self) window.top.document.title = title; } catch {}
-    }
-
-    function setFavicon(href) {
-      if (!href) return;
-      document.querySelectorAll('link[rel*="icon"]').forEach(l => l.remove());
-      const link = document.createElement('link');
-      link.rel = 'icon';
-      link.href = href;
-      document.head.appendChild(link);
-    }
-
-    function applyCloak(preset = null) {
-      if (preset) {
-        setTitle(preset.title);
-        setFavicon(preset.favicon);
-      } else {
-        // Default fallback
-        setTitle('Google');
-        setFavicon('https://www.google.com/favicon.ico');
-      }
-    }
-
-    function startRotation() {
-      stopRotation();
-      if (cloakPresets.length < 2) return applyCloak(cloakPresets[0]);
-      let index = 0;
-      rotationInterval = setInterval(() => {
-        index = (index + 1) % cloakPresets.length;
-        applyCloak(cloakPresets[index]);
-      }, 5000); // Rotate every 5 seconds
-    }
-
-    function stopRotation() {
-      if (rotationInterval) {
-        clearInterval(rotationInterval);
-        rotationInterval = null;
-      }
-    }
-
-    function toggleStealth() {
-      isStealthActive = !isStealthActive;
-      const btn = document.getElementById('stealth-toggle');
-      if (isStealthActive) {
-        btn.textContent = 'Stealth Mode ON';
-        btn.classList.add('active');
-        applyCloak();
-        startRotation(); // Optional: rotate for extra stealth
-        document.getElementById('status').textContent = 'Stealth active — tab disguised!';
-      } else {
-        btn.textContent = 'Stealth Mode OFF';
-        btn.classList.remove('active');
-        stopRotation();
-        setTitle(originalTitle);
-        setFavicon(originalFavicon);
-        document.getElementById('status').textContent = '';
-      }
-    }
-
-    // Attach toggle button
-    document.getElementById('stealth-toggle').onclick = toggleStealth;
-
-    // Your existing library code (fetchAndRender, renderItems, etc.)
-    // ... paste your full fetch/render/search/loadMore logic here ...
-
-    // Example placeholder for your player cloak (about:blank already has "New Tab")
+    // Cloaked about:blank player with PiP instructions
     function openCloaked(embedUrl) {
       const win = window.open('about:blank', '_blank');
       if (!win) {
-        alert('Popup blocked!');
+        alert('Popup blocked! Allow popups for this site.');
         return;
       }
       win.document.write(`
         <!DOCTYPE html>
         <html lang="en">
         <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>New Tab</title>
-          <link rel="icon" href="https://www.google.com/favicon.ico">
-          <style>body,html{margin:0;padding:0;height:100%;overflow:hidden;background:#000;}iframe{border:none;width:100%;height:100%;}</style>
+          <link rel="icon" href="https://www.google.com/favicon.ico" type="image/x-icon">
+          <style>
+            body, html { margin:0; padding:0; height:100%; overflow:hidden; background:#000; font-family:Arial,sans-serif; color:#fff; }
+            #instructions {
+              position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+              background: rgba(0,0,0,0.7); padding: 12px 24px; border-radius: 8px;
+              z-index: 9999; font-size: 1.1em; max-width: 90%; text-align: center;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            }
+          </style>
         </head>
-        <body><iframe src="${embedUrl}" allowfullscreen></iframe></body>
+        <body>
+          <iframe src="${embedUrl}" allowfullscreen style="border:none; width:100%; height:100%; display:block;"></iframe>
+          <div id="instructions">
+            Right-click (or long-press) on the video → "Picture in Picture" to pop it out.<br>
+            Works great in Chrome/Edge. Resize/move the floating window!
+          </div>
+          <script>
+            setTimeout(() => {
+              const instr = document.getElementById('instructions');
+              if (instr) instr.style.display = 'none';
+            }, 8000);
+          </script>
+        </body>
         </html>
       `);
       win.document.close();
       win.focus();
     }
 
-    // Initial load your library
+    // Improved fetch with timeout + better errors
+    async function fetchAndRender(page = 1, query = '') {
+      grid.innerHTML = '';
+      loading.style.display = 'block';
+      loadMoreBtn.style.display = 'none';
+      status.textContent = 'Connecting to TMDB (may take a few seconds)...';
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+
+        let url;
+        if (query) {
+          url = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(query)}&page=${page}&include_adult=false`;
+        } else {
+          if (page === 1) {
+            // Parallel fetches for popular movies + TV
+            const moviePromise = fetch('https://api.themoviedb.org/3/movie/popular?language=en-US&page=1', {
+              headers: { 'Authorization': `Bearer ${TMDB_TOKEN}`, 'accept': 'application/json' },
+              signal: controller.signal
+            });
+            const tvPromise = fetch('https://api.themoviedb.org/3/tv/popular?language=en-US&page=1', {
+              headers: { 'Authorization': `Bearer ${TMDB_TOKEN}`, 'accept': 'application/json' },
+              signal: controller.signal
+            });
+
+            const [movieRes, tvRes] = await Promise.all([moviePromise, tvPromise]);
+
+            clearTimeout(timeoutId);
+
+            if (!movieRes.ok || !tvRes.ok) {
+              const errMsg = !movieRes.ok ? await movieRes.json() : await tvRes.json();
+              throw new Error(`TMDB API error: ${errMsg.status_message || 'Unknown'} (code ${errMsg.status_code || 'unknown'})`);
+            }
+
+            const movies = await movieRes.json();
+            const tv = await tvRes.json();
+
+            const movieItems = Array.isArray(movies.results) ? movies.results : [];
+            const tvItems = Array.isArray(tv.results) ? tv.results : [];
+
+            if (movieItems.length === 0 && tvItems.length === 0) {
+              throw new Error('TMDB returned no results – token may be invalid or not approved yet.');
+            }
+
+            const all = [...movieItems, ...tvItems].sort(() => Math.random() - 0.5);
+            renderItems(all);
+            currentPage = 2;
+            loadMoreBtn.style.display = 'block';
+          } else {
+            const type = page % 2 === 0 ? 'movie' : 'tv';
+            url = `https://api.themoviedb.org/3/${type}/popular?language=en-US&page=${Math.ceil(page / 2)}`;
+            const res = await fetch(url, {
+              headers: { 'Authorization': `Bearer ${TMDB_TOKEN}`, 'accept': 'application/json' },
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            if (!res.ok) {
+              const errData = await res.json();
+              throw new Error(`TMDB error: ${errData.status_message || 'Unknown'} (code ${errData.status_code || res.status})`);
+            }
+            const data = await res.json();
+            renderItems(data.results || []);
+            loadMoreBtn.style.display = 'block';
+          }
+        }
+
+        loading.style.display = 'none';
+        if (grid.children.length === 0 && !query) {
+          status.textContent = 'No content loaded – check console (F12) for details.';
+        }
+      } catch (err) {
+        loading.style.display = 'none';
+        if (err.name === 'AbortError') {
+          status.textContent = 'TMDB request timed out. Try refreshing or check your internet.';
+        } else if (err.message.includes('Invalid API key') || err.message.includes('status_code')) {
+          status.textContent = 'TMDB API key invalid or not approved yet. Regenerate or wait 5-10 min after creation.';
+        } else {
+          status.textContent = 'Error: ' + err.message + ' – Open F12 Console for more info.';
+        }
+        console.error('Fetch failed:', err);
+      }
+    }
+
+    function renderItems(items) {
+      items.forEach(item => {
+        const isMovie = item.media_type === 'movie' || !item.media_type;
+        const title = item.title || item.name;
+        const id = item.id;
+        const poster = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : 'https://via.placeholder.com/300x450?text=No+Poster';
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <img src="${poster}" alt="${title}">
+          <p>${title}</p>
+        `;
+
+        let embedUrl;
+        if (isMovie) {
+          embedUrl = `https://www.vidking.net/embed/movie/${id}?color=e50914&autoPlay=true`;
+        } else {
+          embedUrl = `https://www.vidking.net/embed/tv/${id}/1/1?color=e50914&autoPlay=true&episodeSelector=true&nextEpisode=true`;
+        }
+
+        card.onclick = () => openCloaked(embedUrl);
+        grid.appendChild(card);
+      });
+    }
+
+    // Events
+    loadMoreBtn.onclick = () => fetchAndRender(currentPage++);
+
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value.trim();
+      if (searchQuery.length > 2) {
+        isSearching = true;
+        currentPage = 1;
+        fetchAndRender(1, searchQuery);
+      } else if (searchQuery === '') {
+        isSearching = false;
+        currentPage = 1;
+        grid.innerHTML = '';
+        fetchAndRender(1);
+      }
+    });
+
+    // Start loading
     fetchAndRender(1);
   </script>
 </body>
