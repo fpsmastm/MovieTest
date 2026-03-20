@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Movie & TV Library</title>
+  <!-- Original favicon (will be changed by cloak) -->
+  <link id="favicon" rel="icon" href="https://www.google.com/favicon.ico" type="image/x-icon">
+  <style>
+    body { font-family: Arial, sans-serif; background: #111; color: white; margin: 0; padding: 20px; }
+    h1 { text-align: center; margin: 10px 0; }
+    
+    /* Glowing stealth menu at top */
+    #stealth-menu {
+      text-align: center; margin-bottom: 20px;
+      position: relative;
+    }
+    #stealth-toggle {
+      padding: 12px 30px; font-size: 1.2em; font-weight: bold;
+      background: linear-gradient(45deg, #00ffea, #ff00aa);
+      color: #000; border: none; border-radius: 50px;
+      cursor: pointer; box-shadow: 0 0 20px rgba(0, 255, 234, 0.7);
+      transition: all 0.4s ease;
+    }
+    #stealth-toggle:hover {
+      box-shadow: 0 0 40px rgba(0, 255, 234, 1), 0 0 60px rgba(255, 0, 170, 0.8);
+      transform: scale(1.08);
+    }
+    #stealth-toggle.active {
+      background: linear-gradient(45deg, #ff0000, #ff9900);
+      color: white;
+      box-shadow: 0 0 30px #ff0000;
+    }
+    #status { text-align: center; font-size: 1.1em; margin: 10px; color: #0f0; }
+    
+    /* Your existing styles for grid/search/etc. */
+    #search-container { text-align: center; margin: 20px 0; }
+    #search { padding: 12px; width: 300px; max-width: 80%; font-size: 1.1em; border-radius: 6px; border: none; }
+    #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; max-width: 1400px; margin: 0 auto; }
+    .card { cursor: pointer; text-align: center; }
+    .card img { width: 100%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); transition: transform 0.2s; }
+    .card img:hover { transform: scale(1.05); }
+    .card p { margin: 8px 0; font-size: 0.9em; }
+    #loading, #status { text-align: center; font-size: 1.2em; margin: 20px; }
+    #load-more { display: block; margin: 30px auto; padding: 12px 24px; font-size: 1.1em; background: #e50914; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    #load-more:hover { background: #b2070e; }
+  </style>
+</head>
+<body>
+  <div id="stealth-menu">
+    <button id="stealth-toggle">Stealth Mode OFF</button>
+  </div>
+  <div id="status"></div>
+
+  <h1>My Movie & TV Library</h1>
+
+  <div id="search-container">
+    <input id="search" type="text" placeholder="Search movies or TV shows...">
+  </div>
+
+  <div id="loading">Loading content...</div>
+  <div id="grid"></div>
+  <button id="load-more" style="display:none;">Load More</button>
+
+  <script>
+    // === Your TMDB token ===
+    const TMDB_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIxMDc1MmM5NDYzYTM1MDIwZjY5NzY0M2YxODBlZDFjOSIsIm5iZiI6MTc3MzkyOTE1MC40MTY5OTk4LCJzdWIiOiI2OWJjMDJiZWJlZGM4NTYxNjk1N2RhZjEiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.6Qp2tf80gkNeMQObgWaC7GLDaCwIUWnidtSTaJXUCSY';
+
+    // === Cloaking / Stealth Mode Logic (adapted & simplified from your code) ===
+    let rotationInterval = null;
+    let isStealthActive = false;
+
+    // Simple presets (add more as needed)
+    const cloakPresets = [
+      { name: 'Google', title: 'Google', favicon: 'https://www.google.com/favicon.ico' },
+      { name: 'Classroom', title: 'Google Classroom', favicon: 'https://ssl.gstatic.com/classroom/favicon.ico' },
+      { name: 'Drive', title: 'Google Drive', favicon: 'https://drive.google.com/favicon.ico' },
+      { name: 'Docs', title: 'Google Docs', favicon: 'https://docs.google.com/favicon.ico' }
+    ];
+
+    const originalTitle = document.title;
+    const originalFavicon = document.querySelector('link[rel="icon"]')?.href || '';
+
+    function setTitle(title) {
+      document.title = title;
+      // Try top frame if in iframe
+      try { if (window.top !== window.self) window.top.document.title = title; } catch {}
+    }
+
+    function setFavicon(href) {
+      if (!href) return;
+      document.querySelectorAll('link[rel*="icon"]').forEach(l => l.remove());
+      const link = document.createElement('link');
+      link.rel = 'icon';
+      link.href = href;
+      document.head.appendChild(link);
+    }
+
+    function applyCloak(preset = null) {
+      if (preset) {
+        setTitle(preset.title);
+        setFavicon(preset.favicon);
+      } else {
+        // Default fallback
+        setTitle('Google');
+        setFavicon('https://www.google.com/favicon.ico');
+      }
+    }
+
+    function startRotation() {
+      stopRotation();
+      if (cloakPresets.length < 2) return applyCloak(cloakPresets[0]);
+      let index = 0;
+      rotationInterval = setInterval(() => {
+        index = (index + 1) % cloakPresets.length;
+        applyCloak(cloakPresets[index]);
+      }, 5000); // Rotate every 5 seconds
+    }
+
+    function stopRotation() {
+      if (rotationInterval) {
+        clearInterval(rotationInterval);
+        rotationInterval = null;
+      }
+    }
+
+    function toggleStealth() {
+      isStealthActive = !isStealthActive;
+      const btn = document.getElementById('stealth-toggle');
+      if (isStealthActive) {
+        btn.textContent = 'Stealth Mode ON';
+        btn.classList.add('active');
+        applyCloak();
+        startRotation(); // Optional: rotate for extra stealth
+        document.getElementById('status').textContent = 'Stealth active — tab disguised!';
+      } else {
+        btn.textContent = 'Stealth Mode OFF';
+        btn.classList.remove('active');
+        stopRotation();
+        setTitle(originalTitle);
+        setFavicon(originalFavicon);
+        document.getElementById('status').textContent = '';
+      }
+    }
+
+    // Attach toggle button
+    document.getElementById('stealth-toggle').onclick = toggleStealth;
+
+    // Your existing library code (fetchAndRender, renderItems, etc.)
+    // ... paste your full fetch/render/search/loadMore logic here ...
+
+    // Example placeholder for your player cloak (about:blank already has "New Tab")
+    function openCloaked(embedUrl) {
+      const win = window.open('about:blank', '_blank');
+      if (!win) {
+        alert('Popup blocked!');
+        return;
+      }
+      win.document.write(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>New Tab</title>
+          <link rel="icon" href="https://www.google.com/favicon.ico">
+          <style>body,html{margin:0;padding:0;height:100%;overflow:hidden;background:#000;}iframe{border:none;width:100%;height:100%;}</style>
+        </head>
+        <body><iframe src="${embedUrl}" allowfullscreen></iframe></body>
+        </html>
+      `);
+      win.document.close();
+      win.focus();
+    }
+
+    // Initial load your library
+    fetchAndRender(1);
+  </script>
+</body>
+</html>
